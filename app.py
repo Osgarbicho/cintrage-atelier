@@ -744,38 +744,56 @@ if run_calc:
         "confidence": res["confidence"]
     })
     
-    # ─── TABLEAU RÉSULTATS ───
+    # Sauvegarde du nb_rayons et target dans la session pour l'affichage
+    st.session_state.last_nb_rayons = nb_rayons
+    st.session_state.last_target = target_val
+
+# ─── AFFICHAGE RÉSULTATS (piloté par session_state, toujours visible) ───
+if st.session_state.last_result:
+    res = st.session_state.last_result
+    disp_nb_rayons = st.session_state.get("last_nb_rayons", res["num_arcs"])
+    disp_target = st.session_state.get("last_target", target_val)
+
     st.markdown("---")
     st.markdown("### 📋 RÉSULTATS")
-    
+
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Erreur moy.", f"{res['err_mean']:.1f} mm")
     c2.metric("Erreur max.", f"{res['err_max']:.1f} mm")
     c3.metric("Angle départ", f"{res['alpha']:.1f}°")
     c4.metric("Confiance", f"{res['confidence']}%")
     c5.metric("Largeur", f"{res['width']:.0f} mm")
-    
+
     rows = []
-    for i in range(nb_rayons):
+    for i in range(disp_nb_rayons):
         L = res["Ls"][i]
         R = res["Rs"][i]
-        if L >= target_val:
+        if L >= disp_target:
             status = "✅ OK"
-        elif L >= target_val * 0.8:
+        elif L >= disp_target * 0.8:
             status = "⚠️ Court"
         else:
             status = "❌ Trop Court"
-        rows.append({"Zone": f"Arc {i+1}", "Rayon (mm)": round(R, 1), "Dév. L (mm)": round(L, 1), "Cible (mm)": target_val, "État": status})
-    
+        rows.append({
+            "Zone": f"Arc {i+1}",
+            "Rayon (mm)": round(R, 1),
+            "Dév. L (mm)": round(L, 1),
+            "Cible (mm)": disp_target,
+            "État": status
+        })
+
     final_df = pd.DataFrame(rows)
-    st.dataframe(final_df.style.format({"Rayon (mm)": "{:.1f}", "Dév. L (mm)": "{:.1f}"}), use_container_width=True)
-    
+    st.dataframe(
+        final_df.style.format({"Rayon (mm)": "{:.1f}", "Dév. L (mm)": "{:.1f}"}),
+        use_container_width=True
+    )
+
     # ─── EXPORTS ───
     st.markdown("### 📤 EXPORT")
     ec1, ec2, ec3 = st.columns(3)
-    
+
     with ec1:
-        excel_data = export_excel(res, target_val, nb_rayons)
+        excel_data = export_excel(res, disp_target, disp_nb_rayons)
         st.download_button(
             "⬇ Excel (.xlsx)",
             data=excel_data,
@@ -783,7 +801,7 @@ if run_calc:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
-    
+
     with ec2:
         json_data = export_json(res)
         st.download_button(
@@ -793,10 +811,9 @@ if run_calc:
             mime="application/json",
             use_container_width=True
         )
-    
+
     with ec3:
-        # Export CSV simple
-        csv_rows = [f"Arc {i+1};{round(res['Rs'][i],1)};{round(res['Ls'][i],1)}" for i in range(nb_rayons)]
+        csv_rows = [f"Arc {i+1};{round(res['Rs'][i],1)};{round(res['Ls'][i],1)}" for i in range(disp_nb_rayons)]
         csv_data = "Zone;Rayon (mm);Dév. L (mm)\n" + "\n".join(csv_rows)
         st.download_button(
             "⬇ CSV",
@@ -805,5 +822,3 @@ if run_calc:
             mime="text/csv",
             use_container_width=True
         )
-    
-    st.rerun()
